@@ -156,4 +156,8 @@ def index():
 if __name__ == "__main__":
     init_db()
     start_watcher()
-    app.run(host='0.0.0.0', port=80)
+    # 修改端口为 5572，避免和 NAS 系统冲突
+    # 也可以通过环境变量 PANEL_PORT 修改
+    port = int(os.getenv('PANEL_PORT', 5572))
+    logger.info(f"Web面板启动端口: {port}")
+    app.run(host='0.0.0.0', port=port)
