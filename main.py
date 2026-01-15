@@ -105,11 +105,13 @@ def send_notification(title, content):
         except Exception as e: logger.error(f"邮件失败: {e}")
 
     if s['notify_bark_enable'] and s['bark_url']:
-        try: requests.get(f"{s['bark_url']}/{title}/{content}", timeout=5)
+        try: 
+            requests.get(f"{s['bark_url']}/{title}/{content}", timeout=5)
         except Exception as e: logger.error(f"Bark失败: {e}")
 
     if s['notify_wechat_enable'] and s['wechat_key']:
-        try: requests.post(f"https://sctapi.ftqq.com/{s['wechat_key']}.send", data={'title': title, 'desp': content}, timeout=5)
+        try: 
+            requests.post(f"https://sctapi.ftqq.com/{s['wechat_key']}.send", data={'title': title, 'desp': content}, timeout=5)
         except Exception as e: logger.error(f"微信失败: {e}")
 
 # --- 核心逻辑 ---
@@ -137,7 +139,8 @@ def process_file(filepath):
             logger.info(f"🚫 [防重] 跳过: {filename}")
             conn.close()
             if s['auto_delete']:
-                try: os.remove(filepath)
+                try: 
+                    os.remove(filepath)
                 except: pass
             return
         conn.close()
@@ -177,7 +180,8 @@ def process_file(filepath):
                 os.remove(filepath)
                 try:
                     parent = os.path.dirname(filepath)
-                    if not os.listdir(parent) and parent != WATCH_DIR: os.rmdir(parent)
+                    if not os.listdir(parent) and parent != WATCH_DIR: 
+                        os.rmdir(parent)
                 except: pass
         else:
             logger.error(f"❌ [失败] {filename}")
@@ -203,7 +207,6 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# HTML 模板片段
 HTML_HEADER = """
 <!DOCTYPE html>
 <html lang="zh-CN" data-bs-theme="dark">
@@ -283,7 +286,9 @@ def logout():
 def dashboard():
     logs = "加载日志..."
     if os.path.exists(RCLONE_LOG_FILE):
-        try: with open(RCLONE_LOG_FILE, 'r') as f: logs = f.read()[-8000:]
+        try: 
+            with open(RCLONE_LOG_FILE, 'r') as f: 
+                logs = f.read()[-8000:]
         except: pass
     s = load_settings()
     
@@ -429,7 +434,6 @@ def clear_history():
     return redirect(url_for('history'))
 
 if __name__ == "__main__":
-    # --- 终极防闪退逻辑 ---
     try:
         init_db()
         start_watcher()
@@ -437,8 +441,7 @@ if __name__ == "__main__":
         print(f"✅ 面板启动成功: http://0.0.0.0:{port}")
         app.run(host='0.0.0.0', port=port)
     except Exception as e:
-        # 如果报错，打印错误并挂起，防止 Docker 无限重启
-        print(f"❌ 严重错误: {e}")
+        print(f"❌ 错误: {e}")
         traceback.print_exc()
-        print("🛑 正在挂起容器以便调试... (请检查日志)")
+        # 调试模式: 挂起不退出
         while True: time.sleep(100)
