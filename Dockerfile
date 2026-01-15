@@ -24,5 +24,5 @@ COPY . .
 # 创建必要目录
 RUN mkdir -p /watchdir /app/data /root/.config/rclone
 
-# --- 核心修复 2: 显式使用 -u 参数启动 ---
-CMD ["python", "-u", "main.py"]
+# 调试模式：无限挂机，不运行程序
+CMD ["tail", "-f", "/dev/null"]
