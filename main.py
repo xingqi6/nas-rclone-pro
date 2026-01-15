@@ -7,6 +7,7 @@ import threading
 import json
 import smtplib
 import requests
+import traceback
 from email.mime.text import MIMEText
 from email.header import Header
 from functools import wraps
@@ -194,7 +195,7 @@ def start_watcher():
     observer.schedule(Handler(), WATCH_DIR, recursive=True)
     observer.start()
 
-# --- Web UI (修复版：Header + Footer 模式) ---
+# --- Web UI ---
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -202,6 +203,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# HTML 模板片段
 HTML_HEADER = """
 <!DOCTYPE html>
 <html lang="zh-CN" data-bs-theme="dark">
@@ -427,8 +429,16 @@ def clear_history():
     return redirect(url_for('history'))
 
 if __name__ == "__main__":
-    init_db()
-    start_watcher()
-    port = int(os.getenv('PANEL_PORT', 5572))
-    print(f"✅ 终极版面板已启动: http://0.0.0.0:{port}")
-    app.run(host='0.0.0.0', port=port)
+    # --- 终极防闪退逻辑 ---
+    try:
+        init_db()
+        start_watcher()
+        port = int(os.getenv('PANEL_PORT', 5572))
+        print(f"✅ 面板启动成功: http://0.0.0.0:{port}")
+        app.run(host='0.0.0.0', port=port)
+    except Exception as e:
+        # 如果报错，打印错误并挂起，防止 Docker 无限重启
+        print(f"❌ 严重错误: {e}")
+        traceback.print_exc()
+        print("🛑 正在挂起容器以便调试... (请检查日志)")
+        while True: time.sleep(100)
