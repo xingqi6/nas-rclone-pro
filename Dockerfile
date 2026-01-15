@@ -24,5 +24,5 @@ COPY . .
 # 创建必要目录
 RUN mkdir -p /watchdir /app/data /root/.config/rclone
 
-# 调试模式：无限挂机，不运行程序
-CMD ["tail", "-f", "/dev/null"]
+# 正常模式
+CMD ["python", "-u", "main.py"]
