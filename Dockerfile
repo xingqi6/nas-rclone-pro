@@ -17,4 +17,5 @@ COPY . .
 
 RUN mkdir -p /watchdir /app/data /root/.config/rclone
 
-CMD ["python", "main.py"]
+# 调试模式：什么都不做，只是挂机，防止重启
+CMD ["tail", "-f", "/dev/null"]
