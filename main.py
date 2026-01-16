@@ -69,7 +69,9 @@ def load_settings():
         try:
             with open(SETTINGS_FILE, 'r') as f:
                 settings.update(json.load(f))
-        except: pass
+        except:
+            pass
+            
     # 环境变量兜底
     if not settings['rclone_remote']:
         env_remote = os.getenv('RCLONE_REMOTE', '')
@@ -97,7 +99,8 @@ def get_rclone_remotes():
     try:
         res = subprocess.run(["rclone", "listremotes", "--config", RCLONE_CONF], capture_output=True, text=True)
         return [r.strip() for r in res.stdout.split('\n') if r.strip()]
-    except: return []
+    except:
+        return []
 
 def send_notification(title, content):
     s = load_settings()
@@ -111,13 +114,20 @@ def send_notification(title, content):
             smtp.login(s['smtp_user'], s['smtp_pass'])
             smtp.sendmail(s['smtp_user'], [s['email_to']], msg.as_string())
             smtp.quit()
-        except Exception as e: logger.error(f"邮件失败: {e}")
+        except Exception as e:
+            logger.error(f"邮件失败: {e}")
+            
     if s['notify_bark_enable'] and s['bark_url']:
-        try: requests.get(f"{s['bark_url']}/{title}/{content}", timeout=5)
-        except: pass
+        try:
+            requests.get(f"{s['bark_url']}/{title}/{content}", timeout=5)
+        except:
+            pass
+            
     if s['notify_wechat_enable'] and s['wechat_key']:
-        try: requests.post(f"https://sctapi.ftqq.com/{s['wechat_key']}.send", data={'title': title, 'desp': content}, timeout=5)
-        except: pass
+        try:
+            requests.post(f"https://sctapi.ftqq.com/{s['wechat_key']}.send", data={'title': title, 'desp': content}, timeout=5)
+        except:
+            pass
 
 def is_file_free(filepath, duration):
     try:
@@ -125,7 +135,8 @@ def is_file_free(filepath, duration):
         time.sleep(duration)
         size2 = os.path.getsize(filepath)
         return size1 == size2
-    except: return False
+    except:
+        return False
 
 def process_file(filepath):
     if not os.path.exists(filepath): return
@@ -143,8 +154,10 @@ def process_file(filepath):
             logger.info(f"🚫 [防重] 跳过: {filename}")
             conn.close()
             if s['auto_delete']:
-                try: os.remove(filepath)
-                except: pass
+                try:
+                    os.remove(filepath)
+                except:
+                    pass
             return
         conn.close()
 
@@ -185,12 +198,15 @@ def process_file(filepath):
                 os.remove(filepath)
                 try:
                     parent = os.path.dirname(filepath)
-                    if not os.listdir(parent) and parent != WATCH_DIR: os.rmdir(parent)
-                except: pass
+                    if not os.listdir(parent) and parent != WATCH_DIR:
+                        os.rmdir(parent)
+                except:
+                    pass
         else:
             logger.error(f"❌ [失败] {filename}")
             send_notification("Rclone上传失败", filename)
-    except Exception as e: logger.error(f"异常: {e}")
+    except Exception as e:
+        logger.error(f"异常: {e}")
 
 class Handler(FileSystemEventHandler):
     def on_created(self, event):
@@ -210,8 +226,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- UI 模板 (Bootstrap 5 Darkly) ---
-# 使用 Header + Content + Footer 模式避免 Jinja 错误
+# --- UI 模板 ---
 HTML_HEADER = """
 <!DOCTYPE html><html lang="zh-CN" data-bs-theme="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NAS Rclone Pro</title>
@@ -275,8 +290,11 @@ def logout():
 def dashboard():
     logs = "等待日志..."
     if os.path.exists(RCLONE_LOG_FILE):
-        try: with open(RCLONE_LOG_FILE, 'r') as f: logs = f.read()[-5000:]
-        except: pass
+        try:
+            with open(RCLONE_LOG_FILE, 'r') as f:
+                logs = f.read()[-5000:]
+        except:
+            pass
     s = load_settings()
     content = """
     <div class="row g-4"><div class="col-lg-4"><div class="card h-100"><div class="card-header"><i class="fa-solid fa-server me-2"></i>概览</div><div class="card-body">
@@ -371,7 +389,7 @@ def settings():
     <div class="col-md-4"><input type="text" name="smtp_port" class="form-control form-control-sm bg-dark text-white" placeholder="端口 (465)" value="{{ s['smtp_port'] }}"></div></div>
     <div class="row g-2 mb-2"><div class="col-md-6"><input type="text" name="smtp_user" class="form-control form-control-sm bg-dark text-white" placeholder="你的邮箱账号" value="{{ s['smtp_user'] }}"></div>
     <div class="col-md-6"><input type="password" name="smtp_pass" class="form-control form-control-sm bg-dark text-white" placeholder="授权码 (非密码)" value="{{ s['smtp_pass'] }}"></div></div>
-    <div class="input-group input-group-sm mb-3"><span class="input-group-text bg-secondary border-secondary text-white">收件人</span><input type="text" name="email_to" class="form-control bg-dark text-white" value="{{ s['email_to'] }}"><button name="test_email" value="1" class="btn btn-info">测试</button></div>
+    <div class="input-group input-group-sm mb-3"><span class="input-group-text bg-secondary border-secondary text-white">收件人</span><input type="text" name="email_to" class="form-control bg-dark text-white" placeholder="收件人" value="{{ s['email_to'] }}"><button name="test_email" value="1" class="btn btn-info">测试</button></div>
     <div class="alert alert-info py-2 small mb-0"><i class="fa-solid fa-circle-info me-1"></i>QQ邮箱获取授权码：设置 -> 账号 -> 开启SMTP -> 生成授权码</div></div></div>
     
     <button class="btn btn-primary w-100 btn-lg mb-5">保存所有配置</button></form></div></div>
@@ -424,10 +442,9 @@ if __name__ == "__main__":
         init_db()
         start_watcher()
         port = int(os.getenv('PANEL_PORT', 5572))
-        print(f"✅ 面板已启动: http://0.0.0.0:{port}")
+        print(f"✅ 面板启动: http://0.0.0.0:{port}")
         app.run(host='0.0.0.0', port=port)
     except Exception as e:
-        # 防崩兜底：如果 Flask 启动失败（如端口占用），挂起不退出
-        print(f"❌ 启动异常: {e}")
+        print(f"FATAL ERROR: {e}")
         traceback.print_exc()
-        while True: time.sleep(100)
+        while True: time.sleep(100) # 挂机防重启
