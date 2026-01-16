@@ -24,7 +24,8 @@ except ImportError as e:
     print("请检查 requirements.txt 是否包含: requests, flask, watchdog")
     print("⚠️ 容器已进入挂机模式，请修复依赖后重启")
     print("!"*50 + "\n")
-    while True: time.sleep(100)
+    while True:
+        time.sleep(100)
 
 # --- 基础配置 ---
 WATCH_DIR = "/watchdir"
@@ -71,7 +72,6 @@ def load_settings():
                 settings.update(json.load(f))
         except:
             pass
-            
     # 环境变量兜底
     if not settings['rclone_remote']:
         env_remote = os.getenv('RCLONE_REMOTE', '')
@@ -102,6 +102,20 @@ def get_rclone_remotes():
     except:
         return []
 
+def rclone_obscure(password):
+    """调用 rclone obscure 命令加密密码"""
+    try:
+        # 必须使用 rclone obscure 才能生成配置文件可用的密码
+        res = subprocess.run(["rclone", "obscure", password], capture_output=True, text=True)
+        if res.returncode == 0:
+            return res.stdout.strip()
+        else:
+            logger.error(f"密码加密失败: {res.stderr}")
+            return password # 失败返回原密码(虽然可能没用)
+    except Exception as e:
+        logger.error(f"加密调用异常: {e}")
+        return password
+
 def send_notification(title, content):
     s = load_settings()
     if s['notify_email_enable'] and s['smtp_user'] and s['email_to']:
@@ -116,13 +130,11 @@ def send_notification(title, content):
             smtp.quit()
         except Exception as e:
             logger.error(f"邮件失败: {e}")
-            
     if s['notify_bark_enable'] and s['bark_url']:
         try:
             requests.get(f"{s['bark_url']}/{title}/{content}", timeout=5)
         except:
             pass
-            
     if s['notify_wechat_enable'] and s['wechat_key']:
         try:
             requests.post(f"https://sctapi.ftqq.com/{s['wechat_key']}.send", data={'title': title, 'desp': content}, timeout=5)
@@ -139,9 +151,11 @@ def is_file_free(filepath, duration):
         return False
 
 def process_file(filepath):
-    if not os.path.exists(filepath): return
+    if not os.path.exists(filepath):
+        return
     filename = os.path.basename(filepath)
-    if filename.endswith(('.tmp', '.aria2', '.part', '.downloading', '.ds_store')): return
+    if filename.endswith(('.tmp', '.aria2', '.part', '.downloading', '.ds_store')):
+        return
 
     s = load_settings()
     filesize = os.path.getsize(filepath)
@@ -168,17 +182,18 @@ def process_file(filepath):
 
     remote = s['rclone_remote']
     if not remote:
-        logger.warning("⚠️ 未配置远程仓库，跳过上传")
+        logger.warning("⚠️ 未配置远程仓库，无法上传")
         return
 
     full_remote = f"{remote}{s['rclone_path']}"
+    # --- 关键修复：确保使用用户配置的参数 ---
     cmd = ["rclone", "copy", filepath, full_remote,
            "--buffer-size", str(s['rclone_buffer']),
            "--transfers", str(s['rclone_transfers']),
            "--checkers", str(s['rclone_checkers']),
            "--log-file", RCLONE_LOG_FILE, "--log-level", "INFO"]
 
-    logger.info(f"🚀 [上传] {filename}")
+    logger.info(f"🚀 [上传] {filename} -> {full_remote}")
     try:
         start_time = time.time()
         result = subprocess.run(cmd)
@@ -204,15 +219,24 @@ def process_file(filepath):
                     pass
         else:
             logger.error(f"❌ [失败] {filename}")
-            send_notification("Rclone上传失败", filename)
+            # 如果失败，读取最后几行日志
+            try:
+                with open(RCLONE_LOG_FILE, 'r') as f:
+                    err_log = f.readlines()[-3:]
+                    logger.error(f"Rclone报错: {err_log}")
+            except:
+                pass
+            send_notification("Rclone上传失败", f"{filename}\n请检查配置")
     except Exception as e:
         logger.error(f"异常: {e}")
 
 class Handler(FileSystemEventHandler):
     def on_created(self, event):
-        if not event.is_directory: threading.Thread(target=process_file, args=(event.src_path,)).start()
+        if not event.is_directory:
+            threading.Thread(target=process_file, args=(event.src_path,)).start()
     def on_moved(self, event):
-        if not event.is_directory: threading.Thread(target=process_file, args=(event.dest_path,)).start()
+        if not event.is_directory:
+            threading.Thread(target=process_file, args=(event.dest_path,)).start()
 
 def start_watcher():
     observer = Observer()
@@ -222,11 +246,12 @@ def start_watcher():
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'logged_in' not in session: return redirect(url_for('login'))
+        if 'logged_in' not in session:
+            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
 
-# --- UI 模板 ---
+# --- UI 模板 (Bootstrap 5 Darkly) ---
 HTML_HEADER = """
 <!DOCTYPE html><html lang="zh-CN" data-bs-theme="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NAS Rclone Pro</title>
@@ -276,7 +301,7 @@ def login():
     return render_template_string("""<!DOCTYPE html><html data-bs-theme="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>body{height:100vh;display:flex;align-items:center;justify-content:center;background:#121212}</style></head>
-    <body><div class="card p-4 shadow-lg border-0" style="width:350px;background:#1e1e1e"><div class="text-center mb-4"><h3 class="fw-bold text-primary">Rclone Pro</h3><p class="text-muted small">v4.0 Final</p></div>
+    <body><div class="card p-4 shadow-lg border-0" style="width:350px;background:#1e1e1e"><div class="text-center mb-4"><h3 class="fw-bold text-primary">Rclone Pro</h3><p class="text-muted small">v4.1 Final</p></div>
     <form method="post"><input type="password" name="password" class="form-control mb-3 bg-dark text-white" placeholder="请输入密码" required>
     <button class="btn btn-primary w-100">登录</button></form></div></body></html>""")
 
@@ -319,19 +344,32 @@ def wizard():
             u = request.form.get('url')
             usr = request.form.get('user')
             pwd = request.form.get('pass')
+            
+            # --- 修复核心：调用 rclone obscure 加密密码 ---
+            obs_pwd = rclone_obscure(pwd)
+            
             cfg = f"\n[{n}]\ntype = {t}\n"
-            if t == 'webdav': cfg += f"url = {u}\nvendor = other\nuser = {usr}\npass = {pwd}\n"
-            elif t == 'ftp': cfg += f"host = {u}\nuser = {usr}\npass = {pwd}\n"
-            elif t == 'smb': cfg += f"host = {u}\nuser = {usr}\npass = {pwd}\n"
-            with open(RCLONE_CONF, 'a') as f: f.write(cfg)
+            if t == 'webdav':
+                cfg += f"url = {u}\nvendor = other\nuser = {usr}\npass = {obs_pwd}\n"
+            elif t == 'ftp':
+                cfg += f"host = {u}\nuser = {usr}\npass = {obs_pwd}\n"
+            elif t == 'smb':
+                cfg += f"host = {u}\nuser = {usr}\npass = {obs_pwd}\n"
+            
+            with open(RCLONE_CONF, 'a') as f:
+                f.write(cfg)
+                
             s = load_settings()
             s['rclone_remote'] = f"{n}:"
             save_settings(s)
-            flash(f'成功添加 [{n}]', 'success')
+            flash(f'成功添加 [{n}]，密码已加密！', 'success')
             return redirect(url_for('dashboard'))
-        except Exception as e: flash(f'错误: {e}', 'danger')
+        except Exception as e:
+            flash(f'错误: {e}', 'danger')
+            
     content = """
     <div class="row justify-content-center"><div class="col-md-8"><div class="card"><div class="card-header bg-primary text-white">新建连接向导</div><div class="card-body">
+    <div class="alert alert-info small"><i class="fa-solid fa-shield-halved me-1"></i>系统会自动加密您的密码，请放心填写明文。</div>
     <form method="post"><div class="mb-3"><label class="form-label">存储类型</label><select name="type" class="form-select" onchange="updateTip(this)"><option value="webdav">WebDAV (Alist/123盘)</option><option value="smb">SMB (NAS/Win)</option><option value="ftp">FTP</option></select></div>
     <div class="mb-3"><label class="form-label">连接名称 (英文)</label><input type="text" name="name" class="form-control" placeholder="例如: my_alist" required pattern="[a-zA-Z0-9_]+"><div class="form-text">给这个连接起个名字，不要中文</div></div>
     <div class="mb-3"><label class="form-label">服务器地址</label><input type="text" name="url" class="form-control" placeholder="http://..." required><div class="form-text text-info" id="url-tip">通常是 http://IP:端口/dav</div></div>
@@ -414,12 +452,14 @@ def help_page():
 @login_required
 def edit_conf():
     if request.method == 'POST':
-        with open(RCLONE_CONF, 'w') as f: f.write(request.form.get('content'))
+        with open(RCLONE_CONF, 'w') as f:
+            f.write(request.form.get('content'))
         flash('已保存', 'success')
         return redirect(url_for('edit_conf'))
     c = ""
     if os.path.exists(RCLONE_CONF):
-        with open(RCLONE_CONF, 'r') as f: c = f.read()
+        with open(RCLONE_CONF, 'r') as f:
+            c = f.read()
     content = """
     <div class="card h-100"><div class="card-header d-flex justify-content-between"><span>rclone.conf (手动编辑)</span><button type="submit" form="f1" class="btn btn-sm btn-success">保存</button></div>
     <div class="card-body p-0"><form id="f1" method="post"><textarea name="content" class="form-control bg-dark text-white font-monospace border-0" style="height:600px" spellcheck="false">""" + c + """</textarea></form></div></div>
@@ -445,6 +485,8 @@ if __name__ == "__main__":
         print(f"✅ 面板启动: http://0.0.0.0:{port}")
         app.run(host='0.0.0.0', port=port)
     except Exception as e:
-        print(f"FATAL ERROR: {e}")
+        # 防崩兜底：如果 Flask 启动失败（如端口占用），挂起不退出
+        print(f"❌ 启动异常: {e}")
         traceback.print_exc()
-        while True: time.sleep(100) # 挂机防重启
+        while True:
+            time.sleep(100)
